@@ -1,15 +1,61 @@
 import React, { Component } from "react";
+import api from "../services/api";
+import socket from "socket.io-client";
 import twitterLogo from "../twitter.svg";
+import Tweet from "../components/Tweet";
 import "./Timeline.css";
 export default class TimeLine extends Component {
   constructor(props) {
     super(props);
     this.state = {
-      newTweet: ""
+      newTweet: "",
+      tweets: []
     };
   }
 
-  handleNewTweet = () => {};
+  subscribeToEvents = () => {
+    const io = socket("http://localhost:3000");
+
+    io.on("tweet", data => {
+      this.setState({ tweets: [data, ...this.state.tweets] });
+    });
+    io.on("like", data => {
+      this.setState({
+        tweets: this.state.tweets.map(tweet =>
+          tweet._id === data._id ? data : tweet
+        )
+      });
+    });
+  };
+
+  async getTweets() {
+    const response = await api.get("tweets");
+    this.setState({
+      tweets: response.data
+    });
+  }
+
+  componentDidMount() {
+    this.subscribeToEvents();
+    this.getTweets();
+  }
+
+  renderTweets() {
+    return this.state.tweets.map(tweet => {
+      return <Tweet key={tweet._id} tweet={tweet} />;
+    });
+  }
+
+  handleNewTweet = async event => {
+    if (event.keyCode !== 13) return;
+
+    const content = this.state.newTweet;
+    const author = localStorage.getItem("@GoTwitter:username");
+
+    await api.post("tweets", { content, author });
+
+    this.setState({ newTweet: "" });
+  };
 
   handleChange = event => {
     const target = event.target;
@@ -27,13 +73,13 @@ export default class TimeLine extends Component {
         <form>
           <textarea
             value={this.state.newTweet}
+            name="newTweet"
             onChange={event => this.handleChange(event)}
             onKeyDown={this.handleNewTweet}
             placeholder="O que está acontecendo?"
           />
         </form>
-
-        <ul>a</ul>
+        <ul className="tweet-list">{this.renderTweets()}</ul>
       </div>
     );
   }
